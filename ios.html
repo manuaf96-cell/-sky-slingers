@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"><meta name="theme-color" content="#071329"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><title>Sky Slingers V88 · iOS Play</title>
+<style>
+:root{color-scheme:dark}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#061126;color:#fff;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;touch-action:none;overscroll-behavior:none}#game{display:block;width:100vw;height:100dvh;touch-action:none}.hud{position:fixed;top:calc(env(safe-area-inset-top) + 8px);left:12px;right:12px;display:flex;justify-content:space-between;align-items:flex-start;pointer-events:none;gap:8px}.pill{background:#0c2040dc;border:1px solid #8dbbff55;border-radius:14px;padding:8px 11px;font-size:13px;font-weight:750;box-shadow:0 4px 20px #0005}.actions{position:fixed;right:14px;bottom:calc(env(safe-area-inset-bottom) + 18px);display:flex;flex-direction:column;gap:10px}.btn{border:1px solid #b8d8ff88;background:#15396be8;color:#fff;border-radius:18px;min-width:76px;min-height:56px;padding:12px;font-size:14px;font-weight:850;box-shadow:0 5px 18px #0005;touch-action:manipulation}.btn:active{transform:scale(.96);background:#2e68ae}.overlay{position:fixed;inset:0;display:grid;place-items:center;padding:24px;background:#030916a8}.panel{width:min(440px,100%);text-align:center;padding:26px 22px;border:1px solid #8dbbff66;border-radius:26px;background:linear-gradient(160deg,#142d54f5,#09162bf5);box-shadow:0 20px 80px #0009}.panel h1{font-size:clamp(30px,8vw,46px);margin:8px 0}.panel p{color:#c6d8f6;line-height:1.5}.panel .btn{width:100%;margin-top:8px;min-height:54px}.hidden{display:none}.hint{position:fixed;left:12px;bottom:calc(env(safe-area-inset-bottom) + 20px);max-width:60%;font-size:12px;color:#d3e2ffb8;pointer-events:none}.small{font-size:12px;color:#a9c3e9}
+</style></head>
+<body>
+<canvas id="game" aria-label="Gioco arcade Sky Slingers"></canvas>
+<div class="hud"><div class="pill">🚀 SKY SLINGERS <span style="color:#8fc5ff">V88</span><br>⭐ <span id="score">0</span> &nbsp; · &nbsp; 🏆 <span id="best">0</span></div><div class="pill">❤️ <span id="lives">3</span><br>🌊 LIVELLO <span id="level">1</span></div></div>
+<div class="hint">Trascina il dito per muoverti · spara automaticamente</div>
+<div class="actions"><button class="btn" id="pause">Ⅱ PAUSA</button><button class="btn" id="fire">✦ FUOCO</button></div>
+<div class="overlay" id="menu"><div class="panel"><div style="font-size:52px">🛸</div><h1>SKY SLINGERS</h1><p>Versione giocabile ottimizzata per iPhone e iPad. Schiva le ondate, distruggi i nemici e supera il tuo record.</p><p class="small">Controlli touch · salvataggio record locale · nessun download necessario</p><button class="btn" id="start">GIOCA</button><button class="btn" id="how">COME SI GIOCA</button><p id="help" class="small hidden">Trascina sullo schermo per guidare la nave. Il fuoco è automatico; usa ✦ FUOCO per rafforzare temporaneamente i colpi. Evita i nemici e raccogli le stelle.</p></div></div>
+<script>
+(()=>{'use strict';
+const canvas=document.getElementById('game'),ctx=canvas.getContext('2d',{alpha:false}),$=id=>document.getElementById(id);
+let w=0,h=0,dpr=1,running=false,paused=false,over=false,score=0,lives=3,level=1,frame=0,fireBoost=0,spawn=0,last=0,player={x:0,y:0,r:15},bullets=[],enemies=[],sparks=[],stars=[],pointer=null;
+let best=0;try{best=Math.max(0,Number(localStorage.getItem('skySlingersIOSBest'))||0)}catch(e){}$('best').textContent=best;
+function resize(){dpr=Math.min(window.devicePixelRatio||1,2);w=innerWidth;h=innerHeight;canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);player.x=Math.min(Math.max(player.x||w/2,20),w-20);player.y=Math.min(Math.max(player.y||h*.78,h*.4),h-45);stars=Array.from({length:Math.max(45,Math.floor(w*h/9000))},()=>({x:Math.random()*w,y:Math.random()*h,s:.5+Math.random()*1.8,v:.4+Math.random()*1.4}));draw()}window.addEventListener('resize',resize);
+function reset(){score=0;lives=3;level=1;frame=0;spawn=0;bullets=[];enemies=[];sparks=[];fireBoost=0;player={x:w/2,y:h*.78,r:15};over=false;paused=false;running=true;$('menu').classList.add('hidden');$('pause').textContent='Ⅱ PAUSA';hud()}
+function hud(){$('score').textContent=score;$('lives').textContent=lives;$('level').textContent=level}
+function burst(x,y,color,n=8){for(let i=0;i<n;i++){let a=Math.random()*Math.PI*2,s=1+Math.random()*3;sparks.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:22+Math.random()*18,color})}}
+function shoot(){if(!running||paused||over)return;let rate=fireBoost>0?5:10;if(frame%rate===0){bullets.push({x:player.x-5,y:player.y-13,v:8,r:3},{x:player.x+5,y:player.y-13,v:8,r:3})}}
+function spawnEnemy(){let r=11+Math.random()*10;enemies.push({x:20+Math.random()*(w-40),y:-r,r,hp:r>18?2:1,v:1.1+Math.random()*1.3+level*.09,phase:Math.random()*6})}
+function update(){frame++;level=1+Math.floor(score/120);stars.forEach(s=>{s.y+=s.v;if(s.y>h){s.y=0;s.x=Math.random()*w}});if(frame%3===0)shoot();if(fireBoost>0)fireBoost--;if(++spawn>Math.max(17,65-level*2)){spawn=0;spawnEnemy()}
+bullets.forEach(b=>b.y-=b.v);bullets=bullets.filter(b=>b.y>-20);
+for(let e of enemies){e.y+=e.v;e.x+=Math.sin(frame*.025+e.phase)*.65;if(Math.hypot(e.x-player.x,e.y-player.y)<e.r+player.r-4){e.y=h+100;lives--;burst(player.x,player.y,'#ff718f',15);if(lives<=0)finish()}}
+for(let e of enemies){for(let b of bullets){if(!b.dead&&Math.hypot(e.x-b.x,e.y-b.y)<e.r+b.r){b.dead=true;e.hp--;burst(b.x,b.y,'#7feaff',3);if(e.hp<=0){e.dead=true;score+=10;burst(e.x,e.y,'#ffbd68',10)}}}}
+bullets=bullets.filter(b=>!b.dead);enemies=enemies.filter(e=>!e.dead&&e.y<h+40);sparks.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vx*=.98;p.vy*=.98;p.life--});sparks=sparks.filter(p=>p.life>0);hud()}
+function draw(){ctx.fillStyle='#061126';ctx.fillRect(0,0,w,h);let g=ctx.createLinearGradient(0,0,0,h);g.addColorStop(0,'#0a1a38');g.addColorStop(1,'#071127');ctx.fillStyle=g;ctx.fillRect(0,0,w,h);for(let s of stars){ctx.globalAlpha=.35+s.s*.25;ctx.fillStyle='#b8dcff';ctx.fillRect(s.x,s.y,s.s,s.s*2.5)}ctx.globalAlpha=1;
+for(let b of bullets){ctx.fillStyle='#83f3ff';ctx.shadowColor='#39dfff';ctx.shadowBlur=10;ctx.fillRect(b.x-2,b.y-7,4,12)}ctx.shadowBlur=0;
+for(let e of enemies){ctx.save();ctx.translate(e.x,e.y);ctx.fillStyle=e.hp>1?'#ff7d9b':'#ffb36d';ctx.strokeStyle='#ffe3d1';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(0,e.r);ctx.lineTo(-e.r,e.r*.15);ctx.lineTo(-e.r*.65,-e.r*.65);ctx.lineTo(0,-e.r*.3);ctx.lineTo(e.r*.65,-e.r*.65);ctx.lineTo(e.r,e.r*.15);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore()}
+ctx.save();ctx.translate(player.x,player.y);ctx.shadowColor='#58dfff';ctx.shadowBlur=18;ctx.fillStyle='#73dfff';ctx.strokeStyle='#efffff';ctx.lineWidth=1.8;ctx.beginPath();ctx.moveTo(0,-20);ctx.lineTo(14,13);ctx.lineTo(4,9);ctx.lineTo(0,14);ctx.lineTo(-4,9);ctx.lineTo(-14,13);ctx.closePath();ctx.fill();ctx.stroke();ctx.shadowBlur=0;ctx.fillStyle='#ffbd68';ctx.beginPath();ctx.moveTo(-5,12);ctx.lineTo(0,23+Math.random()*5);ctx.lineTo(5,12);ctx.fill();ctx.restore();
+for(let p of sparks){ctx.globalAlpha=Math.max(0,p.life/30);ctx.fillStyle=p.color;ctx.fillRect(p.x,p.y,3,3)}ctx.globalAlpha=1;
+if(running&&paused){ctx.fillStyle='#02071488';ctx.fillRect(0,0,w,h);ctx.fillStyle='#fff';ctx.textAlign='center';ctx.font='bold 30px system-ui';ctx.fillText('PAUSA',w/2,h/2)}}
+function finish(){running=false;over=true;try{if(score>best){best=score;localStorage.setItem('skySlingersIOSBest',String(best))}}catch(e){}$('best').textContent=best;$('menu').classList.remove('hidden');$('menu').querySelector('h1').textContent='MISSIONE FINITA';$('menu').querySelector('.panel>p').textContent='Punteggio: '+score+' · Record: '+best;$('start').textContent='RIGIOCA';$('help').classList.add('hidden')}
+function loop(t){if(t-last>1000)last=t;const dt=Math.min(40,t-last||16);last=t;if(running&&!paused)update();draw();requestAnimationFrame(loop)}
+function point(e){const r=canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}}
+canvas.addEventListener('pointerdown',e=>{pointer=e.pointerId;canvas.setPointerCapture(pointer);const p=point(e);player.x=p.x;player.y=Math.max(h*.42,Math.min(h-45,p.y));});
+canvas.addEventListener('pointermove',e=>{if(pointer!==e.pointerId||!running||paused)return;const p=point(e);player.x=Math.max(18,Math.min(w-18,p.x));player.y=Math.max(h*.42,Math.min(h-42,p.y))});
+function endPointer(e){if(pointer===e.pointerId)pointer=null}canvas.addEventListener('pointerup',endPointer);canvas.addEventListener('pointercancel',endPointer);
+$('start').addEventListener('click',()=>{if(over){$('menu').querySelector('h1').textContent='SKY SLINGERS';$('menu').querySelector('.panel>p').textContent='Versione giocabile ottimizzata per iPhone e iPad. Schiva le ondate, distruggi i nemici e supera il tuo record.';$('start').textContent='GIOCA'}reset()});
+$('how').addEventListener('click',()=>$('help').classList.toggle('hidden'));
+$('pause').addEventListener('click',()=>{if(!running)return;paused=!paused;$('pause').textContent=paused?'▶ RIPRENDI':'Ⅱ PAUSA'});
+$('fire').addEventListener('pointerdown',e=>{e.preventDefault();fireBoost=100;burst(player.x,player.y-20,'#8ffcff',8)});
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&running){paused=true;$('pause').textContent='▶ RIPRENDI'}});
+resize();player={x:w/2,y:h*.78,r:15};requestAnimationFrame(loop);
+})();
+</script></body></html>
